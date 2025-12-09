@@ -9,31 +9,23 @@
         /* Landing page specific styles */
         .tools-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 30px;
-            max-width: 900px;
-            margin: 0 auto;
+            margin-top: 50px;
         }
 
         .tool-card {
             background: white;
-            border-radius: 20px;
-            padding: 40px 30px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
             text-decoration: none;
             display: block;
-            position: relative;
-            overflow: hidden;
         }
 
         .tool-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-        }
-
-        .tool-card.active:hover {
-            cursor: pointer;
+            transform: translateY(-5px);
         }
 
         .tool-card.coming-soon {
@@ -43,50 +35,33 @@
 
         .tool-card.coming-soon:hover {
             transform: none;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
         }
 
-        .tool-icon {
-            width: 80px;
-            height: 80px;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 24px;
-            font-size: 36px;
+        .tool-card .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
         }
 
-        .tool-icon.banca {
-            background: linear-gradient(135deg, #366092 0%, #2d4f7a 100%);
-        }
-
-        .tool-icon.mastrino {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        .tool-card h2 {
-            font-size: 24px;
-            color: #333;
-            margin-bottom: 12px;
-            font-weight: 700;
+        .tool-card h3 {
+            color: #366092;
+            margin-bottom: 10px;
+            font-size: 20px;
         }
 
         .tool-card p {
-            font-size: 15px;
+            font-size: 14px;
             color: #666;
-            line-height: 1.6;
-            margin-bottom: 20px;
+            margin: 0;
         }
 
         .tool-status {
             display: inline-block;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
+            margin-top: 15px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         .tool-status.available {
@@ -99,40 +74,6 @@
             color: #856404;
         }
 
-        .tool-arrow {
-            position: absolute;
-            right: 30px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 40px;
-            height: 40px;
-            background: #f5f5f5;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-
-        .tool-card.active:hover .tool-arrow {
-            background: #366092;
-        }
-
-        .tool-card.active:hover .tool-arrow svg {
-            fill: white;
-        }
-
-        .tool-arrow svg {
-            width: 20px;
-            height: 20px;
-            fill: #999;
-            transition: all 0.3s;
-        }
-
-        .tool-card.coming-soon .tool-arrow {
-            display: none;
-        }
-
         .footer {
             text-align: center;
             padding: 40px 20px;
@@ -140,26 +81,9 @@
             font-size: 14px;
         }
 
-        .footer a {
-            color: white;
-            text-decoration: none;
-        }
-
-        .footer a:hover {
-            text-decoration: underline;
-        }
-
         @media (max-width: 768px) {
             .tools-grid {
                 grid-template-columns: 1fr;
-            }
-
-            .tool-card {
-                padding: 30px 24px;
-            }
-
-            .tool-arrow {
-                display: none;
             }
         }
     </style>
@@ -167,7 +91,7 @@
 <body>
     <header class="app-header">
         <div class="header-content">
-            <div class="logo">Conciliator <span class="version">v4</span></div>
+            <div class="logo">Conciliator</div>
         </div>
     </header>
 
@@ -178,36 +102,26 @@
                 <p>Seleziona lo strumento di riconciliazione contabile di cui hai bisogno</p>
 
                 <div class="tools-grid">
-                    <a href="conciliator-banca.html" class="tool-card active">
-                        <div class="tool-icon banca">
-                            <svg viewBox="0 0 24 24" fill="white" width="36" height="36">
+                    <a href="conciliator-banca.html" class="tool-card">
+                        <div class="icon">
+                            <svg viewBox="0 0 24 24" fill="#366092" width="48" height="48">
                                 <path d="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-4.5-9L2 6v2h19V6l-9.5-5z"/>
                             </svg>
                         </div>
-                        <h2>Conciliator Banca</h2>
+                        <h3>Conciliator Banca</h3>
                         <p>Riconciliazione automatica tra estratto conto bancario e mastrino contabile. Supporta commissioni bancarie e matching multi-movimento.</p>
                         <span class="tool-status available">Disponibile</span>
-                        <div class="tool-arrow">
-                            <svg viewBox="0 0 24 24">
-                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-                            </svg>
-                        </div>
                     </a>
 
                     <div class="tool-card coming-soon">
-                        <div class="tool-icon mastrino">
-                            <svg viewBox="0 0 24 24" fill="white" width="36" height="36">
+                        <div class="icon">
+                            <svg viewBox="0 0 24 24" fill="#667eea" width="48" height="48">
                                 <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
                             </svg>
                         </div>
-                        <h2>Conciliator Mastrino</h2>
+                        <h3>Conciliator Mastrino</h3>
                         <p>Riconciliazione interna delle voci Dare e Avere all'interno dello stesso mastrino contabile.</p>
                         <span class="tool-status coming-soon">In arrivo</span>
-                        <div class="tool-arrow">
-                            <svg viewBox="0 0 24 24">
-                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-                            </svg>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -215,7 +129,7 @@
     </div>
 
     <footer class="footer">
-        <p>Conciliator v4 - Strumenti di Riconciliazione Contabile</p>
+        <p>Conciliator - Strumenti di Riconciliazione Contabile</p>
     </footer>
 </body>
 </html>
