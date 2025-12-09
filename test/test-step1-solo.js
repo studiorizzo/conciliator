@@ -7,7 +7,7 @@ const XLSX = require('xlsx');
 const path = require('path');
 
 // === CONFIGURAZIONE ===
-const FILE_PATH = path.join(__dirname, '..', 'ANTICIPI A FORNITORI.xlsx');
+const FILE_PATH = path.join(__dirname, 'ANTICIPI A FORNITORI.xlsx');
 const OUTPUT_PATH = path.join(__dirname, 'residui-step1.xlsx');
 const COD_ANTICIPO = 513;
 const COD_SALDO = 27;
