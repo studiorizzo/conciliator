@@ -1,4 +1,4 @@
-// === CONCILIATOR BANCA v4 - JavaScript ===
+// === CONCILIATOR BANCA - JavaScript ===
 // Extracted from original HTML for modular structure
 
 // === GESTIONE SIDEBAR UPLOAD ===
@@ -376,7 +376,7 @@ function isMatchSicuro(mov1, mov2, importo1, importo2, config, tolleranzaGiorni)
     return dataEsatta && importoEsatto;
 }
 
-console.log('🚀 Conciliator Banca v4 - Inizializzazione');
+console.log('🚀 Conciliator Banca - Inizializzazione');
 
 // === UTILITY FUNCTIONS ===
 
@@ -1495,7 +1495,7 @@ let filtriAttivi = {
 };
 
 function mostraRisultati(ris) {
-    console.log('📊 Visualizzazione risultati v4...');
+    console.log('📊 Visualizzazione risultati...');
 
     const entrate = ris.entrate.filter(m => m.entrate);
     const uscite = ris.entrate.filter(m => m.uscite);
@@ -1982,7 +1982,7 @@ function generaExcel() {
     const commCalc = commissioniDaRegistrare.reduce((s, c) => s + c.importo, 0);
 
     const riepilogo = [
-        ['RIEPILOGO CONCILIAZIONE BANCARIA v4'],
+        ['RIEPILOGO CONCILIAZIONE BANCARIA'],
         ['Anno di riferimento', annoRiferimento],
         [],
         ['Descrizione', 'Quantità', 'Importo'],
@@ -2064,7 +2064,7 @@ function generaExcel() {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Commissioni da Registrare');
     }
 
-    XLSX.writeFile(wb, `Conciliazione_Bancaria_${annoRiferimento || 'anno'}_v4.xlsx`);
+    XLSX.writeFile(wb, `Conciliazione_Bancaria_${annoRiferimento || 'anno'}.xlsx`);
     console.log('✅ File Excel generato');
 }
 
@@ -2266,4 +2266,4 @@ function salvaParametriIniziali() {
     console.log('📌 Periodi salvati:', periodiSalvati);
 }
 
-console.log('✅ Conciliator Banca v4 pronto');
+console.log('✅ Conciliator Banca pronto');
