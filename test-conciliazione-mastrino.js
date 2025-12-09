@@ -1,14 +1,15 @@
 /**
- * Test Script - Conciliazione Mastrino
- * Logica di riconciliazione tra Anticipi a Fornitori (Dare) e Saldi Fattura (Avere)
+ * Test Script - Conciliazione Mastrino v2
+ * Con raggruppamento commissioni e tolleranza
  */
 
 const XLSX = require('xlsx');
 
 // === CONFIGURAZIONE ===
 const FILE_PATH = 'ANTICIPI A FORNITORI.xlsx';
-const COD_ANTICIPO = 513;  // Anticipo a Fornitori (Dare)
-const COD_SALDO = 27;      // Saldo Fattura (Avere)
+const COD_ANTICIPO = 513;
+const COD_SALDO = 27;
+const TOLLERANZA = 1.00; // Tolleranza in euro per i match
 
 // Indici colonne
 const IDX = {
@@ -38,14 +39,18 @@ function formatImporto(n) {
     return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function matchConTolleranza(importo1, importo2, tolleranza = TOLLERANZA) {
+    return Math.abs(importo1 - importo2) <= tolleranza;
+}
+
 // === CARICAMENTO DATI ===
 function caricaDati() {
     const wb = XLSX.readFile(FILE_PATH);
     const ws = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-    const anticipi = [];  // Dare (513)
-    const saldi = [];     // Avere (27)
+    const anticipi = [];
+    const saldiRaw = [];
 
     for (let i = 1; i < data.length; i++) {
         const row = data[i];
@@ -61,75 +66,132 @@ function caricaDati() {
                 fornitore: row[IDX.Des1Causale] || 'N/D',
                 importo: row[IDX.Dare],
                 conciliato: false,
-                matchedWith: []
+                matchedWith: [],
+                tipoMatch: null
             });
         } else if (cod === COD_SALDO && row[IDX.Avere]) {
-            saldi.push({
+            saldiRaw.push({
                 id: i,
                 riga: i + 1,
                 data: excelDateToJS(row[IDX.DataReg]),
                 dataSerial: row[IDX.DataReg],
-                numDoc: row[IDX.NumDoc],
+                numDoc: (row[IDX.NumDoc] || '').toString().trim(),
                 importo: row[IDX.Avere],
-                conciliato: false,
-                matchedWith: []
             });
         }
     }
 
-    return { anticipi, saldi };
+    return { anticipi, saldiRaw };
 }
 
-// === STEP 1: Conciliazione 1-a-1 ===
+// === STEP 0: Raggruppa saldi per NumDoc e Data ===
+function step0_RaggruppaSaldi(saldiRaw) {
+    console.log('\n' + '='.repeat(60));
+    console.log('STEP 0: Raggruppamento saldi per NumDoc/Data');
+    console.log('='.repeat(60));
+
+    const gruppi = {};
+
+    for (const saldo of saldiRaw) {
+        // Chiave: data + numDoc
+        const key = `${saldo.dataSerial}_${saldo.numDoc}`;
+
+        if (!gruppi[key]) {
+            gruppi[key] = {
+                id: saldo.id,
+                riga: saldo.riga,
+                data: saldo.data,
+                dataSerial: saldo.dataSerial,
+                numDoc: saldo.numDoc,
+                importo: 0,
+                componenti: [],
+                conciliato: false,
+                matchedWith: []
+            };
+        }
+
+        gruppi[key].importo += saldo.importo;
+        gruppi[key].componenti.push({
+            riga: saldo.riga,
+            importo: saldo.importo
+        });
+    }
+
+    const saldi = Object.values(gruppi);
+
+    // Mostra raggruppamenti con più componenti
+    const raggruppati = saldi.filter(s => s.componenti.length > 1);
+    console.log(`\nSaldi raggruppati (con commissioni): ${raggruppati.length}`);
+    raggruppati.forEach(s => {
+        console.log(`  Doc ${s.numDoc} del ${formatDate(s.data)}: €${formatImporto(s.importo)}`);
+        s.componenti.forEach(c => {
+            console.log(`    - Riga ${c.riga}: €${formatImporto(c.importo)}`);
+        });
+    });
+
+    console.log(`\nTotale saldi dopo raggruppamento: ${saldi.length} (da ${saldiRaw.length} righe)`);
+
+    return saldi;
+}
+
+// === STEP 1: Conciliazione 1-a-1 con tolleranza ===
 function step1_UnoAUno(anticipi, saldi) {
     console.log('\n' + '='.repeat(60));
-    console.log('STEP 1: Conciliazione 1-a-1 (importo esatto)');
+    console.log(`STEP 1: Conciliazione 1-a-1 (tolleranza ±€${TOLLERANZA})`);
     console.log('='.repeat(60));
 
     let matches = 0;
+    let matchesConDiff = 0;
 
     for (const ant of anticipi) {
         if (ant.conciliato) continue;
 
-        // Cerca saldo con stesso importo e data successiva
+        // Cerca saldo con importo simile e data successiva
         const saldo = saldi.find(s =>
             !s.conciliato &&
-            Math.abs(s.importo - ant.importo) < 0.01 &&
+            matchConTolleranza(s.importo, ant.importo) &&
             s.dataSerial > ant.dataSerial
         );
 
         if (saldo) {
+            const diff = Math.abs(saldo.importo - ant.importo);
+
             ant.conciliato = true;
             ant.matchedWith = [saldo.id];
             ant.tipoMatch = '1:1';
+            ant.differenza = diff;
             saldo.conciliato = true;
             saldo.matchedWith = [ant.id];
             matches++;
 
-            console.log(`✓ Match: Anticipo ${formatDate(ant.data)} ${ant.fornitore} €${formatImporto(ant.importo)}`);
-            console.log(`         → Saldo ${formatDate(saldo.data)} Doc:${saldo.numDoc} €${formatImporto(saldo.importo)}`);
+            if (diff > 0.01) {
+                matchesConDiff++;
+                console.log(`✓ Match: Anticipo ${formatDate(ant.data)} ${ant.fornitore} €${formatImporto(ant.importo)}`);
+                console.log(`         → Saldo ${formatDate(saldo.data)} Doc:${saldo.numDoc} €${formatImporto(saldo.importo)} (diff: €${formatImporto(diff)})`);
+            }
         }
     }
 
     console.log(`\nRisultato Step 1: ${matches} conciliazioni 1-a-1`);
+    if (matchesConDiff > 0) {
+        console.log(`  (di cui ${matchesConDiff} con differenza > €0.01)`);
+    }
     return matches;
 }
 
-// === STEP 2: Conciliazione 1-a-molti ===
-function* combinazioni(arr, sommaTarget, dataMinima, maxElements = 5) {
-    // Genera combinazioni di elementi che sommano al target
+// === STEP 2: Conciliazione 1-a-molti con tolleranza ===
+function* combinazioni(arr, sommaTarget, dataMinima, tolleranza = TOLLERANZA, maxElements = 5) {
     const n = arr.length;
 
     function* genera(start, current, somma) {
-        if (Math.abs(somma - sommaTarget) < 0.01) {
-            yield [...current];
-            return;
+        if (matchConTolleranza(somma, sommaTarget, tolleranza) && current.length > 0) {
+            yield { elementi: [...current], somma, diff: Math.abs(somma - sommaTarget) };
         }
-        if (somma > sommaTarget + 0.01 || current.length >= maxElements) return;
+        if (somma > sommaTarget + tolleranza || current.length >= maxElements) return;
 
         for (let i = start; i < n; i++) {
             const el = arr[i];
-            if (el.dataSerial > dataMinima) {
+            if (el.dataSerial > dataMinima && !el.conciliato) {
                 current.push(el);
                 yield* genera(i + 1, current, somma + el.importo);
                 current.pop();
@@ -142,34 +204,47 @@ function* combinazioni(arr, sommaTarget, dataMinima, maxElements = 5) {
 
 function step2_UnoAMolti(anticipi, saldi) {
     console.log('\n' + '='.repeat(60));
-    console.log('STEP 2: Conciliazione 1-a-molti');
+    console.log(`STEP 2: Conciliazione 1-a-molti (tolleranza ±€${TOLLERANZA})`);
     console.log('='.repeat(60));
 
     let matches = 0;
-    const saldiDisponibili = saldi.filter(s => !s.conciliato);
 
     for (const ant of anticipi) {
         if (ant.conciliato) continue;
 
-        // Cerca combinazione di saldi che sommano all'anticipo
+        const saldiDisponibili = saldi.filter(s => !s.conciliato && s.dataSerial > ant.dataSerial);
+
+        // Cerca la migliore combinazione (quella con minore differenza)
+        let migliorCombo = null;
+
         for (const combo of combinazioni(saldiDisponibili, ant.importo, ant.dataSerial)) {
-            // Verifica che tutti i saldi della combo siano ancora disponibili
-            if (combo.every(s => !s.conciliato)) {
-                ant.conciliato = true;
-                ant.matchedWith = combo.map(s => s.id);
-                ant.tipoMatch = `1:${combo.length}`;
+            if (!migliorCombo || combo.diff < migliorCombo.diff) {
+                // Verifica che tutti siano ancora disponibili
+                if (combo.elementi.every(s => !s.conciliato)) {
+                    migliorCombo = combo;
+                    if (combo.diff < 0.01) break; // Match perfetto trovato
+                }
+            }
+        }
 
-                combo.forEach(s => {
-                    s.conciliato = true;
-                    s.matchedWith.push(ant.id);
-                });
+        if (migliorCombo && migliorCombo.elementi.length > 1) {
+            ant.conciliato = true;
+            ant.matchedWith = migliorCombo.elementi.map(s => s.id);
+            ant.tipoMatch = `1:${migliorCombo.elementi.length}`;
+            ant.differenza = migliorCombo.diff;
 
-                matches++;
-                console.log(`✓ Match: Anticipo ${formatDate(ant.data)} ${ant.fornitore} €${formatImporto(ant.importo)}`);
-                combo.forEach(s => {
-                    console.log(`         → Saldo ${formatDate(s.data)} Doc:${s.numDoc} €${formatImporto(s.importo)}`);
-                });
-                break;
+            migliorCombo.elementi.forEach(s => {
+                s.conciliato = true;
+                s.matchedWith.push(ant.id);
+            });
+
+            matches++;
+            console.log(`✓ Match: Anticipo ${formatDate(ant.data)} ${ant.fornitore} €${formatImporto(ant.importo)}`);
+            migliorCombo.elementi.forEach(s => {
+                console.log(`         → Saldo ${formatDate(s.data)} Doc:${s.numDoc} €${formatImporto(s.importo)}`);
+            });
+            if (migliorCombo.diff > 0.01) {
+                console.log(`         (diff: €${formatImporto(migliorCombo.diff)})`);
             }
         }
     }
@@ -181,7 +256,7 @@ function step2_UnoAMolti(anticipi, saldi) {
 // === STEP 3: Conciliazione molti-a-1 ===
 function step3_MoltiAUno(anticipi, saldi) {
     console.log('\n' + '='.repeat(60));
-    console.log('STEP 3: Conciliazione molti-a-1 (stesso fornitore)');
+    console.log(`STEP 3: Conciliazione molti-a-1 (stesso fornitore, tolleranza ±€${TOLLERANZA})`);
     console.log('='.repeat(60));
 
     let matches = 0;
@@ -202,27 +277,31 @@ function step3_MoltiAUno(anticipi, saldi) {
 
         // Per ogni fornitore, cerca combinazione di anticipi che sommano al saldo
         for (const [fornitore, antList] of Object.entries(perFornitore)) {
+            if (fornitore === 'N/D') continue; // Salta fornitori sconosciuti per molti:1
+
             const antDisponibili = antList.filter(a => !a.conciliato && a.dataSerial < saldo.dataSerial);
 
             for (const combo of combinazioni(antDisponibili, saldo.importo, 0)) {
-                // Tutti gli anticipi devono avere data < saldo
-                if (combo.every(a => !a.conciliato && a.dataSerial < saldo.dataSerial)) {
+                if (combo.elementi.every(a => !a.conciliato && a.dataSerial < saldo.dataSerial)) {
                     saldo.conciliato = true;
-                    saldo.matchedWith = combo.map(a => a.id);
-                    saldo.tipoMatch = `${combo.length}:1`;
+                    saldo.matchedWith = combo.elementi.map(a => a.id);
 
-                    combo.forEach(a => {
+                    combo.elementi.forEach(a => {
                         a.conciliato = true;
                         a.matchedWith.push(saldo.id);
-                        a.tipoMatch = `${combo.length}:1`;
+                        a.tipoMatch = `${combo.elementi.length}:1`;
+                        a.differenza = combo.diff / combo.elementi.length;
                     });
 
                     matches++;
                     console.log(`✓ Match: Saldo ${formatDate(saldo.data)} Doc:${saldo.numDoc} €${formatImporto(saldo.importo)}`);
                     console.log(`         Fornitore: ${fornitore}`);
-                    combo.forEach(a => {
+                    combo.elementi.forEach(a => {
                         console.log(`         ← Anticipo ${formatDate(a.data)} €${formatImporto(a.importo)}`);
                     });
+                    if (combo.diff > 0.01) {
+                        console.log(`         (diff: €${formatImporto(combo.diff)})`);
+                    }
                     break;
                 }
             }
@@ -265,6 +344,12 @@ function stampaRiepilogo(anticipi, saldi) {
         console.log(`  ${tipo}: ${count}`);
     });
 
+    // Differenze totali
+    const diffTotale = antConciliati.reduce((s, a) => s + (a.differenza || 0), 0);
+    if (diffTotale > 0) {
+        console.log(`\nDifferenza totale per tolleranza: €${formatImporto(diffTotale)}`);
+    }
+
     if (antNonConciliati.length > 0) {
         console.log('\n--- ANTICIPI NON CONCILIATI ---');
         antNonConciliati.forEach(a => {
@@ -275,7 +360,8 @@ function stampaRiepilogo(anticipi, saldi) {
     if (salNonConciliati.length > 0) {
         console.log('\n--- SALDI NON CONCILIATI ---');
         salNonConciliati.forEach(s => {
-            console.log(`  Riga ${s.riga}: ${formatDate(s.data)} Doc:${s.numDoc} €${formatImporto(s.importo)}`);
+            const comp = s.componenti.length > 1 ? ` (${s.componenti.length} comp.)` : '';
+            console.log(`  Riga ${s.riga}: ${formatDate(s.data)} Doc:${s.numDoc} €${formatImporto(s.importo)}${comp}`);
         });
     }
 }
@@ -283,16 +369,19 @@ function stampaRiepilogo(anticipi, saldi) {
 // === MAIN ===
 function main() {
     console.log('╔════════════════════════════════════════════════════════════╗');
-    console.log('║     TEST CONCILIAZIONE MASTRINO - ANTICIPI A FORNITORI     ║');
+    console.log('║   TEST CONCILIAZIONE MASTRINO v2 - CON TOLLERANZA          ║');
     console.log('╚════════════════════════════════════════════════════════════╝');
 
-    const { anticipi, saldi } = caricaDati();
+    const { anticipi, saldiRaw } = caricaDati();
 
     console.log(`\nDati caricati:`);
     console.log(`  - Anticipi a Fornitori (513): ${anticipi.length} movimenti`);
-    console.log(`  - Saldi Fattura (27): ${saldi.length} movimenti`);
+    console.log(`  - Saldi Fattura raw (27): ${saldiRaw.length} righe`);
     console.log(`  - Totale Dare: €${formatImporto(anticipi.reduce((s,a) => s + a.importo, 0))}`);
-    console.log(`  - Totale Avere: €${formatImporto(saldi.reduce((s,a) => s + a.importo, 0))}`);
+    console.log(`  - Totale Avere: €${formatImporto(saldiRaw.reduce((s,a) => s + a.importo, 0))}`);
+
+    // Step 0: Raggruppa saldi
+    const saldi = step0_RaggruppaSaldi(saldiRaw);
 
     // Esegui i 3 step
     const match1 = step1_UnoAUno(anticipi, saldi);
