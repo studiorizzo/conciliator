@@ -7,29 +7,6 @@
     <link rel="stylesheet" href="css/common.css">
     <style>
         /* Landing page specific styles */
-        .welcome-section {
-            text-align: center;
-            margin-bottom: 60px;
-            padding-top: 40px;
-        }
-
-        .welcome-section h1 {
-            font-size: 48px;
-            color: white;
-            margin-bottom: 20px;
-            font-weight: 700;
-            line-height: 1.2;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-
-        .welcome-section p {
-            font-size: 20px;
-            color: rgba(255,255,255,0.9);
-            max-width: 600px;
-            margin: 0 auto;
-            line-height: 1.6;
-        }
-
         .tools-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -42,7 +19,7 @@
             background: white;
             border-radius: 20px;
             padding: 40px 30px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-decoration: none;
             display: block;
@@ -52,7 +29,7 @@
 
         .tool-card:hover {
             transform: translateY(-8px);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
         }
 
         .tool-card.active:hover {
@@ -66,7 +43,7 @@
 
         .tool-card.coming-soon:hover {
             transform: none;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
         }
 
         .tool-icon {
@@ -173,14 +150,6 @@
         }
 
         @media (max-width: 768px) {
-            .welcome-section h1 {
-                font-size: 32px;
-            }
-
-            .welcome-section p {
-                font-size: 16px;
-            }
-
             .tools-grid {
                 grid-template-columns: 1fr;
             }
@@ -193,16 +162,6 @@
                 display: none;
             }
         }
-
-        @media (max-width: 480px) {
-            .welcome-section h1 {
-                font-size: 28px;
-            }
-
-            .container {
-                margin: 20px auto;
-            }
-        }
     </style>
 </head>
 <body>
@@ -213,41 +172,43 @@
     </header>
 
     <div class="container">
-        <section class="welcome-section">
-            <h1>Strumenti di Riconciliazione</h1>
-            <p>Seleziona lo strumento di riconciliazione contabile di cui hai bisogno</p>
-        </section>
+        <div class="welcome-screen">
+            <div class="welcome-content">
+                <h1>Strumenti di Riconciliazione</h1>
+                <p>Seleziona lo strumento di riconciliazione contabile di cui hai bisogno</p>
 
-        <div class="tools-grid">
-            <a href="conciliator-banca.html" class="tool-card active">
-                <div class="tool-icon banca">
-                    <svg viewBox="0 0 24 24" fill="white" width="36" height="36">
-                        <path d="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-4.5-9L2 6v2h19V6l-9.5-5z"/>
-                    </svg>
-                </div>
-                <h2>Conciliator Banca</h2>
-                <p>Riconciliazione automatica tra estratto conto bancario e mastrino contabile. Supporta commissioni bancarie e matching multi-movimento.</p>
-                <span class="tool-status available">Disponibile</span>
-                <div class="tool-arrow">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-                    </svg>
-                </div>
-            </a>
+                <div class="tools-grid">
+                    <a href="conciliator-banca.html" class="tool-card active">
+                        <div class="tool-icon banca">
+                            <svg viewBox="0 0 24 24" fill="white" width="36" height="36">
+                                <path d="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-4.5-9L2 6v2h19V6l-9.5-5z"/>
+                            </svg>
+                        </div>
+                        <h2>Conciliator Banca</h2>
+                        <p>Riconciliazione automatica tra estratto conto bancario e mastrino contabile. Supporta commissioni bancarie e matching multi-movimento.</p>
+                        <span class="tool-status available">Disponibile</span>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                    </a>
 
-            <div class="tool-card coming-soon">
-                <div class="tool-icon mastrino">
-                    <svg viewBox="0 0 24 24" fill="white" width="36" height="36">
-                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-                    </svg>
-                </div>
-                <h2>Conciliator Mastrino</h2>
-                <p>Riconciliazione interna delle voci Dare e Avere all'interno dello stesso mastrino contabile.</p>
-                <span class="tool-status coming-soon">In arrivo</span>
-                <div class="tool-arrow">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-                    </svg>
+                    <div class="tool-card coming-soon">
+                        <div class="tool-icon mastrino">
+                            <svg viewBox="0 0 24 24" fill="white" width="36" height="36">
+                                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                            </svg>
+                        </div>
+                        <h2>Conciliator Mastrino</h2>
+                        <p>Riconciliazione interna delle voci Dare e Avere all'interno dello stesso mastrino contabile.</p>
+                        <span class="tool-status coming-soon">In arrivo</span>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
