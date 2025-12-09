@@ -1,18 +1,19 @@
 /**
  * Test Script - Conciliazione Mastrino - Solo Step 1 (1:1)
  * Match esatto senza raggruppamento commissioni
+ * Output: unico foglio con movimenti residui (formato semplificato)
  */
 
 const XLSX = require('xlsx');
 const path = require('path');
 
 // === CONFIGURAZIONE ===
-const FILE_PATH = path.join(__dirname, '..', 'ANTICIPI A FORNITORI.xlsx');
+const FILE_PATH = path.join(__dirname, 'ANTICIPI A FORNITORI.xlsx');
 const OUTPUT_PATH = path.join(__dirname, 'residui-step1.xlsx');
 const COD_ANTICIPO = 513;
 const COD_SALDO = 27;
 
-// Indici colonne
+// Indici colonne originali
 const IDX = {
     DataReg: 9,
     NumDoc: 10,
@@ -31,7 +32,7 @@ function excelDateToJS(serial) {
 }
 
 function formatDate(date) {
-    if (!date) return 'N/A';
+    if (!date) return '';
     return date.toLocaleDateString('it-IT');
 }
 
@@ -44,50 +45,46 @@ function formatImporto(n) {
 function caricaDati() {
     const wb = XLSX.readFile(FILE_PATH);
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-    const anticipi = [];
-    const saldi = [];
+    // Mappa tutti i movimenti rilevanti (513 e 27) con i dati semplificati
+    const movimenti = [];
 
-    for (let i = 1; i < data.length; i++) {
-        const row = data[i];
+    for (let i = 1; i < rawData.length; i++) {
+        const row = rawData[i];
         const cod = row[IDX.CodCausale];
 
-        if (cod === COD_ANTICIPO && row[IDX.Dare]) {
-            anticipi.push({
-                riga: i + 1,
-                data: excelDateToJS(row[IDX.DataReg]),
+        // Solo anticipi (513) e saldi (27)
+        if (cod === COD_ANTICIPO || cod === COD_SALDO) {
+            movimenti.push({
+                rigaOriginale: i + 1,
                 dataSerial: row[IDX.DataReg],
+                data: excelDateToJS(row[IDX.DataReg]),
                 numDoc: row[IDX.NumDoc] || '',
-                fornitore: row[IDX.Des1Causale] || 'N/D',
-                importo: row[IDX.Dare],
-                conciliato: false,
-                matchRiga: null
-            });
-        } else if (cod === COD_SALDO && row[IDX.Avere]) {
-            saldi.push({
-                riga: i + 1,
-                data: excelDateToJS(row[IDX.DataReg]),
-                dataSerial: row[IDX.DataReg],
-                numDoc: (row[IDX.NumDoc] || '').toString().trim(),
-                importo: row[IDX.Avere],
+                codCausale: row[IDX.CodCausale],
+                desCausale: row[IDX.DesCausale] || '',
+                des1Causale: row[IDX.Des1Causale] || '',
+                dare: row[IDX.Dare] || null,
+                avere: row[IDX.Avere] || null,
                 conciliato: false,
                 matchRiga: null
             });
         }
     }
 
-    return { anticipi, saldi };
+    return movimenti;
 }
 
 // === STEP 1: Conciliazione 1-a-1 esatta ===
-function step1_UnoAUno(anticipi, saldi) {
+function step1_UnoAUno(movimenti) {
     console.log('\n' + '='.repeat(60));
     console.log('STEP 1: Conciliazione 1-a-1 (importo esatto)');
     console.log('='.repeat(60));
 
+    const anticipi = movimenti.filter(m => m.codCausale === COD_ANTICIPO && m.dare);
+    const saldi = movimenti.filter(m => m.codCausale === COD_SALDO && m.avere);
+
     let matches = 0;
-    const conciliazioni = [];
 
     for (const ant of anticipi) {
         if (ant.conciliato) continue;
@@ -95,101 +92,57 @@ function step1_UnoAUno(anticipi, saldi) {
         // Cerca saldo con stesso importo esatto e data successiva
         const saldo = saldi.find(s =>
             !s.conciliato &&
-            Math.abs(s.importo - ant.importo) < 0.01 &&
+            Math.abs(s.avere - ant.dare) < 0.01 &&
             s.dataSerial > ant.dataSerial
         );
 
         if (saldo) {
             ant.conciliato = true;
-            ant.matchRiga = saldo.riga;
+            ant.matchRiga = saldo.rigaOriginale;
             saldo.conciliato = true;
-            saldo.matchRiga = ant.riga;
+            saldo.matchRiga = ant.rigaOriginale;
             matches++;
 
-            conciliazioni.push({
-                antRiga: ant.riga,
-                antData: formatDate(ant.data),
-                antFornitore: ant.fornitore,
-                antImporto: ant.importo,
-                salRiga: saldo.riga,
-                salData: formatDate(saldo.data),
-                salNumDoc: saldo.numDoc,
-                salImporto: saldo.importo
-            });
-
-            console.log(`✓ Riga ${ant.riga} → Riga ${saldo.riga}: ${ant.fornitore} €${formatImporto(ant.importo)}`);
+            console.log(`✓ Riga ${ant.rigaOriginale} → Riga ${saldo.rigaOriginale}: ${ant.des1Causale || 'N/D'} €${formatImporto(ant.dare)}`);
         }
     }
 
     console.log(`\nTotale conciliazioni 1:1: ${matches}`);
-    return { matches, conciliazioni };
+    return matches;
 }
 
 // === GENERA EXCEL RESIDUI ===
-function generaExcelResidui(anticipi, saldi, conciliazioni) {
+function generaExcelResidui(movimenti) {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Anticipi non conciliati
-    const anticipiNC = anticipi.filter(a => !a.conciliato).map(a => ({
-        'Riga': a.riga,
-        'Data': formatDate(a.data),
-        'Fornitore': a.fornitore,
-        'NumDoc': a.numDoc,
-        'Importo': a.importo
-    }));
+    // Filtra solo i non conciliati e ordina per data
+    const residui = movimenti
+        .filter(m => !m.conciliato)
+        .sort((a, b) => (a.dataSerial || 0) - (b.dataSerial || 0));
 
-    if (anticipiNC.length > 0) {
-        const wsAnticpi = XLSX.utils.json_to_sheet(anticipiNC);
-        XLSX.utils.book_append_sheet(wb, wsAnticpi, 'Anticipi Non Conciliati');
-    }
-
-    // Sheet 2: Saldi non conciliati
-    const saldiNC = saldi.filter(s => !s.conciliato).map(s => ({
-        'Riga': s.riga,
-        'Data': formatDate(s.data),
-        'NumDoc': s.numDoc,
-        'Importo': s.importo
-    }));
-
-    if (saldiNC.length > 0) {
-        const wsSaldi = XLSX.utils.json_to_sheet(saldiNC);
-        XLSX.utils.book_append_sheet(wb, wsSaldi, 'Saldi Non Conciliati');
-    }
-
-    // Sheet 3: Conciliazioni effettuate
-    const conc = conciliazioni.map(c => ({
-        'Anticipo Riga': c.antRiga,
-        'Anticipo Data': c.antData,
-        'Fornitore': c.antFornitore,
-        'Importo': c.antImporto,
-        'Saldo Riga': c.salRiga,
-        'Saldo Data': c.salData,
-        'Saldo NumDoc': c.salNumDoc
-    }));
-
-    if (conc.length > 0) {
-        const wsConc = XLSX.utils.json_to_sheet(conc);
-        XLSX.utils.book_append_sheet(wb, wsConc, 'Conciliazioni 1-1');
-    }
-
-    // Sheet 4: Riepilogo
-    const riepilogo = [
-        ['RIEPILOGO CONCILIAZIONE STEP 1'],
-        [],
-        ['Descrizione', 'Quantità', 'Importo'],
-        ['Anticipi totali', anticipi.length, anticipi.reduce((s, a) => s + a.importo, 0)],
-        ['Anticipi conciliati', anticipi.filter(a => a.conciliato).length, anticipi.filter(a => a.conciliato).reduce((s, a) => s + a.importo, 0)],
-        ['Anticipi residui', anticipiNC.length, anticipiNC.reduce((s, a) => s + a.Importo, 0)],
-        [],
-        ['Saldi totali', saldi.length, saldi.reduce((s, a) => s + a.importo, 0)],
-        ['Saldi conciliati', saldi.filter(s => s.conciliato).length, saldi.filter(s => s.conciliato).reduce((s, a) => s + a.importo, 0)],
-        ['Saldi residui', saldiNC.length, saldiNC.reduce((s, a) => s + a.Importo, 0)]
+    // Crea array di dati con header
+    const data = [
+        ['DataReg', 'NumDoc', 'CodCausale', 'DesCausale', 'Des1Causale', 'Dare', 'Avere']
     ];
-    const wsRiep = XLSX.utils.aoa_to_sheet(riepilogo);
-    XLSX.utils.book_append_sheet(wb, wsRiep, 'Riepilogo');
+
+    for (const m of residui) {
+        data.push([
+            formatDate(m.data),
+            m.numDoc,
+            m.codCausale,
+            m.desCausale,
+            m.des1Causale,
+            m.dare || '',
+            m.avere || ''
+        ]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'Residui');
 
     XLSX.writeFile(wb, OUTPUT_PATH);
     console.log(`\n✅ Excel generato: ${OUTPUT_PATH}`);
+    console.log(`   ${residui.length} movimenti residui`);
 }
 
 // === MAIN ===
@@ -198,35 +151,40 @@ function main() {
     console.log('║      TEST CONCILIAZIONE MASTRINO - SOLO STEP 1 (1:1)       ║');
     console.log('╚════════════════════════════════════════════════════════════╝');
 
-    const { anticipi, saldi } = caricaDati();
+    const movimenti = caricaDati();
+
+    const anticipi = movimenti.filter(m => m.codCausale === COD_ANTICIPO);
+    const saldi = movimenti.filter(m => m.codCausale === COD_SALDO);
 
     console.log(`\nDati caricati:`);
     console.log(`  - Anticipi a Fornitori (513): ${anticipi.length}`);
     console.log(`  - Saldi Fattura (27): ${saldi.length}`);
-    console.log(`  - Totale Dare: €${formatImporto(anticipi.reduce((s, a) => s + a.importo, 0))}`);
-    console.log(`  - Totale Avere: €${formatImporto(saldi.reduce((s, a) => s + a.importo, 0))}`);
+    console.log(`  - Totale Dare: €${formatImporto(anticipi.reduce((s, a) => s + (a.dare || 0), 0))}`);
+    console.log(`  - Totale Avere: €${formatImporto(saldi.reduce((s, a) => s + (a.avere || 0), 0))}`);
 
     // Esegui Step 1
-    const { matches, conciliazioni } = step1_UnoAUno(anticipi, saldi);
+    const matches = step1_UnoAUno(movimenti);
 
     // Riepilogo
     console.log('\n' + '='.repeat(60));
     console.log('RIEPILOGO');
     console.log('='.repeat(60));
 
+    const antConc = anticipi.filter(a => a.conciliato);
     const antNC = anticipi.filter(a => !a.conciliato);
+    const salConc = saldi.filter(s => s.conciliato);
     const salNC = saldi.filter(s => !s.conciliato);
 
-    console.log(`\nANTICIPI:`);
-    console.log(`  Conciliati: ${matches} (€${formatImporto(anticipi.filter(a => a.conciliato).reduce((s, a) => s + a.importo, 0))})`);
-    console.log(`  Residui: ${antNC.length} (€${formatImporto(antNC.reduce((s, a) => s + a.importo, 0))})`);
+    console.log(`\nANTICIPI (Dare):`);
+    console.log(`  Conciliati: ${antConc.length} (€${formatImporto(antConc.reduce((s, a) => s + (a.dare || 0), 0))})`);
+    console.log(`  Residui: ${antNC.length} (€${formatImporto(antNC.reduce((s, a) => s + (a.dare || 0), 0))})`);
 
-    console.log(`\nSALDI:`);
-    console.log(`  Conciliati: ${matches} (€${formatImporto(saldi.filter(s => s.conciliato).reduce((s, a) => s + a.importo, 0))})`);
-    console.log(`  Residui: ${salNC.length} (€${formatImporto(salNC.reduce((s, a) => s + a.importo, 0))})`);
+    console.log(`\nSALDI (Avere):`);
+    console.log(`  Conciliati: ${salConc.length} (€${formatImporto(salConc.reduce((s, a) => s + (a.avere || 0), 0))})`);
+    console.log(`  Residui: ${salNC.length} (€${formatImporto(salNC.reduce((s, a) => s + (a.avere || 0), 0))})`);
 
     // Genera Excel
-    generaExcelResidui(anticipi, saldi, conciliazioni);
+    generaExcelResidui(movimenti);
 
     console.log('\n' + '='.repeat(60));
     console.log('TEST COMPLETATO');
