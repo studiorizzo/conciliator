@@ -1035,15 +1035,10 @@ function popolaFiltriCausale(movimenti) {
     `;
 
     causaliUniche.forEach(causale => {
-        // Trova la descrizione della causale
-        const mov = movimenti.find(m => m.codCausale === causale);
-        const desc = mov ? mov.desCausale : '';
-        const label = desc ? `${causale} - ${desc}` : causale;
-
         html += `
             <label class="filter-option">
                 <input type="radio" name="causale-filter" value="${causale}" onchange="applyFilters()">
-                <span>${label}</span>
+                <span>${causale}</span>
             </label>
         `;
     });
