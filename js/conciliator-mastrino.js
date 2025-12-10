@@ -938,10 +938,16 @@ function popolaTabella(movimenti) {
         // Saldo riconciliazione (solo per dare conciliati)
         let saldoHtml = '';
         if (item.tipo === 'dare' && m.conciliato && m.saldoRiconciliazione !== null) {
-            if (Math.abs(m.saldoRiconciliazione) < 0.01) {
-                saldoHtml = '<span class="saldo-zero">\u20AC 0,00</span>';
+            const saldo = m.saldoRiconciliazione;
+            if (Math.abs(saldo) < 0.01) {
+                // Zero: icona ✓ azzurro
+                saldoHtml = '<span class="saldo-zero">✓ € 0,00</span>';
+            } else if (saldo > 0) {
+                // Positivo: icona + arancione
+                saldoHtml = `<span class="saldo-positivo">+ € ${formatImportoItaliano(saldo)}</span>`;
             } else {
-                saldoHtml = `<span class="saldo-differenza">\u20AC ${formatImportoItaliano(m.saldoRiconciliazione)}</span>`;
+                // Negativo: icona − viola
+                saldoHtml = `<span class="saldo-negativo">− € ${formatImportoItaliano(Math.abs(saldo))}</span>`;
             }
         }
 
