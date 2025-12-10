@@ -552,6 +552,58 @@ function showAlert(message, type = 'success') {
     setTimeout(() => alert.remove(), 5000);
 }
 
+// === FUNZIONE TROVA COMBINAZIONE (1-a-molti) ===
+
+/**
+ * Trova una combinazione di saldi che sommati uguagliano il target (entro tolleranza)
+ * @param {Array} saldi - Array di oggetti saldo disponibili (non conciliati)
+ * @param {number} target - Importo da raggiungere (il dare dell'anticipo)
+ * @param {number} tolleranza - Tolleranza sull'importo (default 0.01)
+ * @param {number} maxElementi - Numero massimo di elementi nella combinazione (default 5)
+ * @returns {Array|null} - Array di saldi che formano la combinazione, o null se non trovata
+ */
+function trovaCombinazione(saldi, target, tolleranza = 0.01, maxElementi = 5) {
+    // Ordina per importo decrescente per trovare prima le combinazioni più "dense"
+    const saldiOrdinati = [...saldi].sort((a, b) => b.avere - a.avere);
+
+    let risultato = null;
+
+    // Funzione ricorsiva con backtracking
+    function cerca(indice, combinazioneCorrente, sommaCorrente) {
+        // Se abbiamo già trovato una combinazione, esci
+        if (risultato) return;
+
+        // Se la somma è nel range, abbiamo trovato!
+        if (Math.abs(sommaCorrente - target) <= tolleranza && combinazioneCorrente.length >= 2) {
+            risultato = [...combinazioneCorrente];
+            return;
+        }
+
+        // Se abbiamo superato il target o raggiunto max elementi, backtrack
+        if (sommaCorrente > target + tolleranza || combinazioneCorrente.length >= maxElementi) {
+            return;
+        }
+
+        // Prova ad aggiungere altri saldi
+        for (let i = indice; i < saldiOrdinati.length; i++) {
+            const saldo = saldiOrdinati[i];
+
+            // Salta se già nella combinazione o già conciliato
+            if (saldo.conciliato) continue;
+
+            combinazioneCorrente.push(saldo);
+            cerca(i + 1, combinazioneCorrente, sommaCorrente + saldo.avere);
+            combinazioneCorrente.pop();
+
+            // Se trovato, esci dal loop
+            if (risultato) return;
+        }
+    }
+
+    cerca(0, [], 0);
+    return risultato;
+}
+
 // === ALGORITMO CONCILIAZIONE ===
 
 function concilia(mast, config) {
@@ -560,12 +612,11 @@ function concilia(mast, config) {
     console.log('==========================================');
     console.log('Configurazione:', config);
 
-    // Reset stato
+    // Reset solo isError (dipende dalla config commissioni)
+    // I record già conciliati vengono preservati
     mast.forEach(m => {
-        m.conciliato = false;
         m.isError = false;
-        m.matchProgs = [];
-        m.saldoRiconciliazione = null;
+        // Non tocchiamo: conciliato, matchProgs, saldoRiconciliazione
     });
 
     // Marca commissioni come ERROR
@@ -597,8 +648,12 @@ function concilia(mast, config) {
     console.log(`\nAnticip a Fornitori (513): ${anticipi.length}`);
     console.log(`Saldi Fattura (27): ${saldi.length}`);
 
-    // STEP 1: Conciliazione 1-a-1 esatta
-    console.log('\n--- STEP 1: Conciliazione 1-a-1 (importo esatto) ---');
+    // STEP 1: Conciliazione automatica (tolleranza importo)
+    console.log('\n========== STEP 1: CONCILIAZIONE AUTOMATICA ==========');
+    console.log(`Tolleranza importo: ${config.tolleranzaImporto}`);
+
+    // STEP 1a: Conciliazione 1-a-1
+    console.log('\n--- STEP 1a: Conciliazione 1-a-1 ---');
     let matches = 0;
 
     for (const ant of anticipi) {
@@ -624,7 +679,46 @@ function concilia(mast, config) {
         }
     }
 
-    console.log(`\nTotale conciliazioni 1:1: ${matches}`);
+    console.log(`   Totale conciliazioni 1-a-1: ${matches}`);
+
+    // STEP 1b: Conciliazione 1-a-molti (1 Dare -> N Avere)
+    console.log('\n--- STEP 1b: Conciliazione 1-a-molti ---');
+    let matches1aN = 0;
+
+    for (const ant of anticipi) {
+        if (ant.conciliato) continue;
+
+        // Saldi disponibili con data successiva all'anticipo
+        const saldiDisponibili = saldi.filter(s =>
+            !s.conciliato &&
+            s.dataSerial > ant.dataSerial
+        );
+
+        if (saldiDisponibili.length < 2) continue; // Serve almeno 2 saldi per 1-a-molti
+
+        // Cerca combinazione di saldi che sommano all'anticipo
+        const combinazione = trovaCombinazione(saldiDisponibili, ant.dare, config.tolleranzaImporto);
+
+        if (combinazione && combinazione.length >= 2) {
+            // Concilia l'anticipo con i saldi trovati
+            ant.conciliato = true;
+            ant.matchProgs = combinazione.map(s => s.prog);
+
+            const sommaAvere = combinazione.reduce((sum, s) => sum + s.avere, 0);
+            ant.saldoRiconciliazione = Math.round((ant.dare - sommaAvere) * 100) / 100;
+
+            combinazione.forEach(s => {
+                s.conciliato = true;
+                s.matchProgs = [ant.prog];
+            });
+
+            matches1aN++;
+            console.log(`   Match 1-a-${combinazione.length}: ${ant.prog} (Riga ${ant.rigaOriginale}) -> [${combinazione.map(s => s.prog).join(', ')}]: ${formatImportoItaliano(ant.dare)}`);
+        }
+    }
+
+    console.log(`\nTotale conciliazioni 1-a-molti: ${matches1aN}`);
+    console.log(`Totale conciliazioni Step 1: ${matches + matches1aN}`);
 
     // Calcola statistiche
     const antConc = anticipi.filter(a => a.conciliato);
