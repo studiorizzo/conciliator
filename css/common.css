@@ -38,12 +38,12 @@ body {
     width: 30px;
     height: 30px;
     border-radius: 8px;
-    background: rgba(255,255,255,0.15);
+    background: transparent;
     transition: all 0.2s;
 }
 
 .home-link:hover {
-    background: rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.15);
     transform: scale(1.05);
 }
 
