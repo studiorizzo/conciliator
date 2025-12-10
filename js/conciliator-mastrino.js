@@ -374,7 +374,7 @@ function normalizzaDescrizione(desCausale, des1Causale) {
         return 'Bilancio di Apertura' + (desc1 ? ' ' + desc1 : '');
     }
 
-    if (desc.includes('ANTICIP') && (desc.includes('FORN') || desc.includes('FONR'))) {
+    if (desc.includes('ANTICI') && (desc.includes('FORN') || desc.includes('FONR'))) {
         return 'Anticipo a Fornitori' + (desc1 ? ' - ' + desc1 : '');
     }
 
@@ -705,8 +705,14 @@ function mostraRisultati(ris) {
             <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoSaldiConciliati)}</span>
         </div>
         <div class="summary-card">
-            <h3>Non Conciliati</h3>
-            <div class="value">${ris.stats.anticipiNonConciliati + ris.stats.saldiNonConciliati}</div>
+            <h3>Anticipi Non Conciliati</h3>
+            <div class="value">${ris.stats.anticipiNonConciliati}</div>
+            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoAnticipiNonConciliati)}</span>
+        </div>
+        <div class="summary-card">
+            <h3>Saldi Non Conciliati</h3>
+            <div class="value">${ris.stats.saldiNonConciliati}</div>
+            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoSaldiNonConciliati)}</span>
         </div>
         <div class="summary-card">
             <h3>Commissioni (Error)</h3>
