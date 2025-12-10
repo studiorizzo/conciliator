@@ -823,6 +823,9 @@ function mostraRisultati(ris) {
 
     // Popola tabella
     popolaTabella(ris.movimenti);
+
+    // Popola filtri causale dinamicamente
+    popolaFiltriCausale(ris.movimenti);
 }
 
 function popolaTabella(movimenti) {
@@ -953,7 +956,7 @@ function popolaTabella(movimenti) {
         }
 
         html += `
-            <tr class="${rowClass}" data-stato="${dataStato}" data-prog="${m.prog}" ${item.parentProg ? `data-parent="${item.parentProg}"` : ''}>
+            <tr class="${rowClass}" data-stato="${dataStato}" data-causale="${m.codCausale || ''}" data-prog="${m.prog}" ${item.parentProg ? `data-parent="${item.parentProg}"` : ''}>
                 <td>${expandIcon}${statoHtml}</td>
                 <td>${formatData(m.data)}</td>
                 <td>${m.numDoc || ''}</td>
@@ -1006,22 +1009,75 @@ function toggleFilters() {
     toggle.classList.toggle('active');
 }
 
+// Popola dinamicamente i filtri causale dai dati caricati
+function popolaFiltriCausale(movimenti) {
+    const section = document.getElementById('filters-causale-section');
+    const container = document.getElementById('filters-causale-options');
+
+    // Estrai codici causale unici (escludi vuoti)
+    const causaliUniche = [...new Set(
+        movimenti
+            .map(m => m.codCausale)
+            .filter(c => c !== null && c !== undefined && c !== '')
+    )].sort((a, b) => String(a).localeCompare(String(b)));
+
+    if (causaliUniche.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    // Genera HTML per le opzioni
+    let html = `
+        <label class="filter-option">
+            <input type="radio" name="causale-filter" value="all" checked onchange="applyFilters()">
+            <span>Tutte</span>
+        </label>
+    `;
+
+    causaliUniche.forEach(causale => {
+        // Trova la descrizione della causale
+        const mov = movimenti.find(m => m.codCausale === causale);
+        const desc = mov ? mov.desCausale : '';
+        const label = desc ? `${causale} - ${desc}` : causale;
+
+        html += `
+            <label class="filter-option">
+                <input type="radio" name="causale-filter" value="${causale}" onchange="applyFilters()">
+                <span>${label}</span>
+            </label>
+        `;
+    });
+
+    container.innerHTML = html;
+    section.style.display = 'block';
+}
+
 function applyFilters() {
     const statoFilter = document.querySelector('input[name="stato-filter"]:checked').value;
+    const causaleFilterEl = document.querySelector('input[name="causale-filter"]:checked');
+    const causaleFilter = causaleFilterEl ? causaleFilterEl.value : 'all';
+
     const table = document.getElementById('table-mastrino');
     const rows = table.querySelectorAll('tbody tr');
     const resetBtn = document.getElementById('btn-reset-filters');
 
-    let hasActiveFilter = statoFilter !== 'all';
+    let hasActiveFilter = statoFilter !== 'all' || causaleFilter !== 'all';
 
     rows.forEach(row => {
         const stato = row.dataset.stato;
+        const causale = row.dataset.causale;
         let visible = true;
 
+        // Filtro stato
         if (statoFilter !== 'all') {
             if (statoFilter === 'conciliati' && stato !== 'conciliato') visible = false;
             if (statoFilter === 'non-conciliati' && stato !== 'non-conciliato') visible = false;
             if (statoFilter === 'error' && stato !== 'error') visible = false;
+        }
+
+        // Filtro causale
+        if (visible && causaleFilter !== 'all') {
+            if (causale !== causaleFilter) visible = false;
         }
 
         row.classList.toggle('filter-hidden', !visible);
@@ -1037,6 +1093,8 @@ function applyFilters() {
 
 function resetFilters() {
     document.querySelector('input[name="stato-filter"][value="all"]').checked = true;
+    const causaleAll = document.querySelector('input[name="causale-filter"][value="all"]');
+    if (causaleAll) causaleAll.checked = true;
     applyFilters();
 }
 
