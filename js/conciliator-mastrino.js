@@ -626,6 +626,45 @@ function concilia(mast, config) {
 
     console.log(`\nTotale conciliazioni 1:1: ${matches}`);
 
+    // STEP 1b: Conciliazione 1-a-molti (1 Dare -> N Avere)
+    console.log('\n--- STEP 1b: Conciliazione 1-a-molti ---');
+    let matches1aN = 0;
+
+    for (const ant of anticipi) {
+        if (ant.conciliato) continue;
+
+        // Saldi disponibili con data successiva all'anticipo
+        const saldiDisponibili = saldi.filter(s =>
+            !s.conciliato &&
+            s.dataSerial > ant.dataSerial
+        );
+
+        if (saldiDisponibili.length < 2) continue; // Serve almeno 2 saldi per 1-a-molti
+
+        // Cerca combinazione di saldi che sommano all'anticipo
+        const combinazione = trovaCombinazione(saldiDisponibili, ant.dare, config.tolleranzaImporto);
+
+        if (combinazione && combinazione.length >= 2) {
+            // Concilia l'anticipo con i saldi trovati
+            ant.conciliato = true;
+            ant.matchProgs = combinazione.map(s => s.prog);
+
+            const sommaAvere = combinazione.reduce((sum, s) => sum + s.avere, 0);
+            ant.saldoRiconciliazione = Math.round((ant.dare - sommaAvere) * 100) / 100;
+
+            combinazione.forEach(s => {
+                s.conciliato = true;
+                s.matchProgs = [ant.prog];
+            });
+
+            matches1aN++;
+            console.log(`   Match 1-a-${combinazione.length}: ${ant.prog} (Riga ${ant.rigaOriginale}) -> [${combinazione.map(s => s.prog).join(', ')}]: ${formatImportoItaliano(ant.dare)}`);
+        }
+    }
+
+    console.log(`\nTotale conciliazioni 1-a-molti: ${matches1aN}`);
+    console.log(`Totale conciliazioni Step 1: ${matches + matches1aN}`);
+
     // Calcola statistiche
     const antConc = anticipi.filter(a => a.conciliato);
     const antNC = anticipi.filter(a => !a.conciliato);
