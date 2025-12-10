@@ -757,6 +757,9 @@ function avviaConciliazioneAutomatica() {
         return;
     }
 
+    // Reset filtri attivi prima di ogni conciliazione
+    resetFilters();
+
     mostraLoading('Conciliazione in corso...', 'Analisi dei movimenti e ricerca corrispondenze');
 
     const config = {
