@@ -723,9 +723,9 @@ function popolaTabella(movimenti) {
 
     // Ordina movimenti secondo le regole specificate:
     // 1. Bilancio apertura prima
-    // 2. Movimenti in dare ordinati per data, con avere corrispondenti subito dopo
-    // 3. Movimenti non conciliati
-    // 4. Commissioni (ERROR) alla fine
+    // 2. Dare e Avere ordinati per data, MA gli avere conciliati "saltano la fila"
+    //    e seguono il loro dare corrispondente
+    // 3. Commissioni (ERROR) sempre alla fine
 
     const bilancio = movimenti.filter(m => m.codCausale === COD_BILANCIO_APERTURA);
     const errors = movimenti.filter(m => m.isError).sort((a, b) => (a.dataSerial || 0) - (b.dataSerial || 0));
@@ -735,15 +735,19 @@ function popolaTabella(movimenti) {
         m.dare &&
         !m.isError &&
         m.codCausale !== COD_BILANCIO_APERTURA
-    ).sort((a, b) => (a.dataSerial || 0) - (b.dataSerial || 0));
+    );
 
-    // Movimenti avere non error e non bilancio e non gia' matchati
-    const avereNonMatchati = movimenti.filter(m =>
+    // Movimenti avere non error, non bilancio e NON conciliati (quelli conciliati saltano la fila)
+    const avereNonConciliati = movimenti.filter(m =>
         m.avere &&
         !m.isError &&
         m.codCausale !== COD_BILANCIO_APERTURA &&
         !m.conciliato
-    ).sort((a, b) => (a.dataSerial || 0) - (b.dataSerial || 0));
+    );
+
+    // Unisci dare e avere non conciliati e ordina per data
+    const dareEAvereOrdinati = [...dareMovimenti, ...avereNonConciliati]
+        .sort((a, b) => (a.dataSerial || 0) - (b.dataSerial || 0));
 
     // Costruisci array ordinato
     const movimentiOrdinati = [];
@@ -751,27 +755,28 @@ function popolaTabella(movimenti) {
     // 1. Bilancio apertura
     bilancio.forEach(m => movimentiOrdinati.push({ movimento: m, tipo: 'bilancio' }));
 
-    // 2. Dare con avere corrispondenti
-    dareMovimenti.forEach(d => {
-        movimentiOrdinati.push({ movimento: d, tipo: 'dare' });
+    // 2. Dare e Avere ordinati per data, con avere conciliati che seguono il dare
+    dareEAvereOrdinati.forEach(mov => {
+        if (mov.dare) {
+            // E' un movimento dare
+            movimentiOrdinati.push({ movimento: mov, tipo: 'dare' });
 
-        // Se conciliato, aggiungi avere corrispondenti subito dopo
-        if (d.conciliato && d.matchProgs.length > 0) {
-            d.matchProgs.forEach(progAvere => {
-                const avereMatch = movimenti.find(m => m.prog === progAvere);
-                if (avereMatch) {
-                    movimentiOrdinati.push({ movimento: avereMatch, tipo: 'avere-match', parentProg: d.prog });
-                }
-            });
+            // Se conciliato, aggiungi avere corrispondenti subito dopo (saltano la fila)
+            if (mov.conciliato && mov.matchProgs.length > 0) {
+                mov.matchProgs.forEach(progAvere => {
+                    const avereMatch = movimenti.find(m => m.prog === progAvere);
+                    if (avereMatch) {
+                        movimentiOrdinati.push({ movimento: avereMatch, tipo: 'avere-match', parentProg: mov.prog });
+                    }
+                });
+            }
+        } else {
+            // E' un movimento avere non conciliato (segue l'ordine per data)
+            movimentiOrdinati.push({ movimento: mov, tipo: 'avere-non-conciliato' });
         }
     });
 
-    // 3. Avere non matchati (non conciliati)
-    avereNonMatchati.forEach(a => {
-        movimentiOrdinati.push({ movimento: a, tipo: 'avere-non-conciliato' });
-    });
-
-    // 4. Errors alla fine
+    // 3. Errors sempre alla fine
     errors.forEach(e => movimentiOrdinati.push({ movimento: e, tipo: 'error' }));
 
     // Genera HTML tabella
@@ -804,13 +809,15 @@ function popolaTabella(movimenti) {
             rowClass = 'row-error';
             statoHtml = '<span class="badge-stato badge-error">ERROR</span>';
         } else if (item.tipo === 'avere-match') {
-            rowClass = 'row-avere-match';
-            statoHtml = '<span class="badge-stato badge-conciliato">CONCILIATO</span>';
+            // Avere conciliato: sfondo bianco, badge con solo contorno
+            rowClass = 'row-avere-match hidden'; // Inizia nascosto (collassato)
+            statoHtml = '<span class="badge-stato badge-conciliato-outline">CONCILIATO</span>';
         } else if (m.conciliato) {
             rowClass = 'row-dare-conciliato';
             statoHtml = '<span class="badge-stato badge-conciliato">CONCILIATO</span>';
             if (m.matchProgs.length > 0) {
-                expandIcon = `<span class="expand-icon" data-prog="${m.prog}">&#9660;</span>`;
+                // Icona freccia verso destra (collassato di default)
+                expandIcon = `<span class="expand-icon" data-prog="${m.prog}">&#9654;</span>`;
             }
         } else {
             statoHtml = '<span class="badge-stato badge-non-conciliato">NON CONCILIATO</span>';
@@ -853,11 +860,12 @@ function popolaTabella(movimenti) {
         icon.addEventListener('click', (e) => {
             e.stopPropagation();
             const prog = icon.dataset.prog;
-            const isCollapsed = icon.classList.contains('collapsed');
+            const isExpanded = icon.classList.contains('expanded');
 
             // Toggle icona
-            icon.classList.toggle('collapsed');
-            icon.innerHTML = isCollapsed ? '&#9660;' : '&#9654;';
+            icon.classList.toggle('expanded');
+            // &#9654; = freccia destra (collassato), &#9660; = freccia giu' (espanso)
+            icon.innerHTML = isExpanded ? '&#9654;' : '&#9660;';
 
             // Toggle righe avere corrispondenti
             document.querySelectorAll(`tr[data-parent="${prog}"]`).forEach(row => {

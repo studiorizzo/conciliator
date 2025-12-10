@@ -13,6 +13,13 @@
             color: #cc0000;
         }
 
+        /* Badge conciliato per avere-match: solo contorno, sfondo bianco */
+        .badge-conciliato-outline {
+            background: white;
+            color: #0066cc;
+            border: 1.5px solid #0066cc;
+        }
+
         /* Expandable row styles */
         .row-dare-conciliato {
             cursor: pointer;
@@ -23,12 +30,25 @@
             background: #e6f3ff;
         }
 
+        /* Stile per righe avere conciliate (match) */
         .row-avere-match {
-            background: #fafafa;
+            background: white;
         }
 
         .row-avere-match.hidden {
             display: none;
+        }
+
+        /* Testo grigio e italico per le righe avere-match (escluso importo) */
+        .row-avere-match td {
+            color: #888;
+            font-style: italic;
+        }
+
+        /* L'importo avere mantiene il colore originale */
+        .row-avere-match td.importo-avere {
+            color: #8b0000;
+            font-style: italic;
         }
 
         .expand-icon {
@@ -41,13 +61,13 @@
             border-radius: 4px;
             background: #366092;
             color: white;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: bold;
             transition: transform 0.2s;
         }
 
-        .expand-icon.collapsed {
-            transform: rotate(-90deg);
+        .expand-icon.expanded {
+            transform: rotate(90deg);
         }
 
         .row-bilancio {
@@ -72,11 +92,6 @@
         /* Indent for avere rows */
         .row-avere-match td:first-child {
             padding-left: 40px;
-        }
-
-        .row-avere-match td:nth-child(2) {
-            color: #666;
-            font-style: italic;
         }
     </style>
 </head>
