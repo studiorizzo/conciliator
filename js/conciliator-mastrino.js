@@ -632,21 +632,21 @@ function concilia(mast, config) {
     });
     console.log(`   Totale commissioni ERROR: ${countError}`);
 
-    // Separa anticipi e saldi (escludi bilancio apertura e commissioni)
-    const anticipi = mast.filter(m =>
-        m.codCausale === COD_ANTICIPO &&
+    // Separa Dare e Avere (escludi solo bilancio apertura e commissioni)
+    const dareMovimenti = mast.filter(m =>
+        m.codCausale !== COD_BILANCIO_APERTURA &&
         m.dare &&
         !m.isError
     );
 
-    const saldi = mast.filter(m =>
-        m.codCausale === COD_SALDO &&
+    const avereMovimenti = mast.filter(m =>
+        m.codCausale !== COD_BILANCIO_APERTURA &&
         m.avere &&
         !m.isError
     );
 
-    console.log(`\nAnticip a Fornitori (513): ${anticipi.length}`);
-    console.log(`Saldi Fattura (27): ${saldi.length}`);
+    console.log(`\nMovimenti Dare: ${dareMovimenti.length}`);
+    console.log(`Movimenti Avere: ${avereMovimenti.length}`);
 
     // STEP 1: Conciliazione automatica (tolleranza importo)
     console.log('\n========== STEP 1: CONCILIAZIONE AUTOMATICA ==========');
@@ -656,26 +656,26 @@ function concilia(mast, config) {
     console.log('\n--- STEP 1a: Conciliazione 1-a-1 ---');
     let matches = 0;
 
-    for (const ant of anticipi) {
-        if (ant.conciliato) continue;
+    for (const dare of dareMovimenti) {
+        if (dare.conciliato) continue;
 
-        // Cerca saldo con stesso importo esatto e data successiva
-        const saldo = saldi.find(s =>
-            !s.conciliato &&
-            Math.abs(s.avere - ant.dare) <= config.tolleranzaImporto &&
-            s.dataSerial > ant.dataSerial
+        // Cerca avere con stesso importo e data successiva
+        const avere = avereMovimenti.find(a =>
+            !a.conciliato &&
+            Math.abs(a.avere - dare.dare) <= config.tolleranzaImporto &&
+            a.dataSerial > dare.dataSerial
         );
 
-        if (saldo) {
-            ant.conciliato = true;
-            ant.matchProgs = [saldo.prog];
-            ant.saldoRiconciliazione = Math.round((ant.dare - saldo.avere) * 100) / 100;
+        if (avere) {
+            dare.conciliato = true;
+            dare.matchProgs = [avere.prog];
+            dare.saldoRiconciliazione = Math.round((dare.dare - avere.avere) * 100) / 100;
 
-            saldo.conciliato = true;
-            saldo.matchProgs = [ant.prog];
+            avere.conciliato = true;
+            avere.matchProgs = [dare.prog];
 
             matches++;
-            console.log(`   Match: ${ant.prog} (Riga ${ant.rigaOriginale}) -> ${saldo.prog} (Riga ${saldo.rigaOriginale}): ${formatImportoItaliano(ant.dare)}`);
+            console.log(`   Match: ${dare.prog} (Riga ${dare.rigaOriginale}) -> ${avere.prog} (Riga ${avere.rigaOriginale}): ${formatImportoItaliano(dare.dare)}`);
         }
     }
 
@@ -685,35 +685,35 @@ function concilia(mast, config) {
     console.log('\n--- STEP 1b: Conciliazione 1-a-molti ---');
     let matches1aN = 0;
 
-    for (const ant of anticipi) {
-        if (ant.conciliato) continue;
+    for (const dare of dareMovimenti) {
+        if (dare.conciliato) continue;
 
-        // Saldi disponibili con data successiva all'anticipo
-        const saldiDisponibili = saldi.filter(s =>
-            !s.conciliato &&
-            s.dataSerial > ant.dataSerial
+        // Avere disponibili con data successiva al dare
+        const avereDisponibili = avereMovimenti.filter(a =>
+            !a.conciliato &&
+            a.dataSerial > dare.dataSerial
         );
 
-        if (saldiDisponibili.length < 2) continue; // Serve almeno 2 saldi per 1-a-molti
+        if (avereDisponibili.length < 2) continue; // Serve almeno 2 avere per 1-a-molti
 
-        // Cerca combinazione di saldi che sommano all'anticipo
-        const combinazione = trovaCombinazione(saldiDisponibili, ant.dare, config.tolleranzaImporto);
+        // Cerca combinazione di avere che sommano al dare
+        const combinazione = trovaCombinazione(avereDisponibili, dare.dare, config.tolleranzaImporto);
 
         if (combinazione && combinazione.length >= 2) {
-            // Concilia l'anticipo con i saldi trovati
-            ant.conciliato = true;
-            ant.matchProgs = combinazione.map(s => s.prog);
+            // Concilia il dare con gli avere trovati
+            dare.conciliato = true;
+            dare.matchProgs = combinazione.map(a => a.prog);
 
-            const sommaAvere = combinazione.reduce((sum, s) => sum + s.avere, 0);
-            ant.saldoRiconciliazione = Math.round((ant.dare - sommaAvere) * 100) / 100;
+            const sommaAvere = combinazione.reduce((sum, a) => sum + a.avere, 0);
+            dare.saldoRiconciliazione = Math.round((dare.dare - sommaAvere) * 100) / 100;
 
-            combinazione.forEach(s => {
-                s.conciliato = true;
-                s.matchProgs = [ant.prog];
+            combinazione.forEach(a => {
+                a.conciliato = true;
+                a.matchProgs = [dare.prog];
             });
 
             matches1aN++;
-            console.log(`   Match 1-a-${combinazione.length}: ${ant.prog} (Riga ${ant.rigaOriginale}) -> [${combinazione.map(s => s.prog).join(', ')}]: ${formatImportoItaliano(ant.dare)}`);
+            console.log(`   Match 1-a-${combinazione.length}: ${dare.prog} (Riga ${dare.rigaOriginale}) -> [${combinazione.map(a => a.prog).join(', ')}]: ${formatImportoItaliano(dare.dare)}`);
         }
     }
 
@@ -721,29 +721,29 @@ function concilia(mast, config) {
     console.log(`Totale conciliazioni Step 1: ${matches + matches1aN}`);
 
     // Calcola statistiche
-    const antConc = anticipi.filter(a => a.conciliato);
-    const antNC = anticipi.filter(a => !a.conciliato);
-    const salConc = saldi.filter(s => s.conciliato);
-    const salNC = saldi.filter(s => !s.conciliato);
+    const dareConc = dareMovimenti.filter(d => d.conciliato);
+    const dareNC = dareMovimenti.filter(d => !d.conciliato);
+    const avereConc = avereMovimenti.filter(a => a.conciliato);
+    const avereNC = avereMovimenti.filter(a => !a.conciliato);
 
     const stats = {
         totaleMovimenti: mast.length,
-        anticipiTotali: anticipi.length,
-        anticipiConciliati: antConc.length,
-        anticipiNonConciliati: antNC.length,
-        importoAnticipiConciliati: antConc.reduce((s, a) => s + (a.dare || 0), 0),
-        importoAnticipiNonConciliati: antNC.reduce((s, a) => s + (a.dare || 0), 0),
-        saldiTotali: saldi.length,
-        saldiConciliati: salConc.length,
-        saldiNonConciliati: salNC.length,
-        importoSaldiConciliati: salConc.reduce((s, a) => s + (a.avere || 0), 0),
-        importoSaldiNonConciliati: salNC.reduce((s, a) => s + (a.avere || 0), 0),
+        dareTotali: dareMovimenti.length,
+        dareConciliati: dareConc.length,
+        dareNonConciliati: dareNC.length,
+        importoDareConciliati: dareConc.reduce((s, d) => s + (d.dare || 0), 0),
+        importoDareNonConciliati: dareNC.reduce((s, d) => s + (d.dare || 0), 0),
+        avereTotali: avereMovimenti.length,
+        avereConciliati: avereConc.length,
+        avereNonConciliati: avereNC.length,
+        importoAvereConciliati: avereConc.reduce((s, a) => s + (a.avere || 0), 0),
+        importoAvereNonConciliati: avereNC.reduce((s, a) => s + (a.avere || 0), 0),
         commissioni: countError
     };
 
     console.log('\n--- RIEPILOGO ---');
-    console.log(`Anticipi conciliati: ${stats.anticipiConciliati}/${stats.anticipiTotali}`);
-    console.log(`Saldi conciliati: ${stats.saldiConciliati}/${stats.saldiTotali}`);
+    console.log(`Dare conciliati: ${stats.dareConciliati}/${stats.dareTotali}`);
+    console.log(`Avere conciliati: ${stats.avereConciliati}/${stats.avereTotali}`);
     console.log(`Commissioni (ERROR): ${stats.commissioni}`);
 
     return { movimenti: mast, stats: stats };
@@ -796,24 +796,24 @@ function mostraRisultati(ris) {
     const summaryGrid = document.getElementById('summaryGrid');
     summaryGrid.innerHTML = `
         <div class="summary-card">
-            <h3>Anticipi Conciliati</h3>
-            <div class="value">${ris.stats.anticipiConciliati} / ${ris.stats.anticipiTotali}</div>
-            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoAnticipiConciliati)}</span>
+            <h3>Dare Conciliati</h3>
+            <div class="value">${ris.stats.dareConciliati} / ${ris.stats.dareTotali}</div>
+            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoDareConciliati)}</span>
         </div>
         <div class="summary-card">
-            <h3>Saldi Conciliati</h3>
-            <div class="value">${ris.stats.saldiConciliati} / ${ris.stats.saldiTotali}</div>
-            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoSaldiConciliati)}</span>
+            <h3>Avere Conciliati</h3>
+            <div class="value">${ris.stats.avereConciliati} / ${ris.stats.avereTotali}</div>
+            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoAvereConciliati)}</span>
         </div>
         <div class="summary-card">
-            <h3>Anticipi Non Conciliati</h3>
-            <div class="value">${ris.stats.anticipiNonConciliati}</div>
-            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoAnticipiNonConciliati)}</span>
+            <h3>Dare Non Conciliati</h3>
+            <div class="value">${ris.stats.dareNonConciliati}</div>
+            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoDareNonConciliati)}</span>
         </div>
         <div class="summary-card">
-            <h3>Saldi Non Conciliati</h3>
-            <div class="value">${ris.stats.saldiNonConciliati}</div>
-            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoSaldiNonConciliati)}</span>
+            <h3>Avere Non Conciliati</h3>
+            <div class="value">${ris.stats.avereNonConciliati}</div>
+            <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoAvereNonConciliati)}</span>
         </div>
         <div class="summary-card">
             <h3>Commissioni (Error)</h3>
@@ -888,6 +888,7 @@ function popolaTabella(movimenti) {
                 <th>Stato</th>
                 <th>Data Reg.</th>
                 <th>Num. Doc.</th>
+                <th>Causale</th>
                 <th>Descrizione</th>
                 <th>Dare</th>
                 <th>Avere</th>
@@ -956,6 +957,7 @@ function popolaTabella(movimenti) {
                 <td>${expandIcon}${statoHtml}</td>
                 <td>${formatData(m.data)}</td>
                 <td>${m.numDoc || ''}</td>
+                <td>${m.codCausale || ''}</td>
                 <td>${m.descrizione}</td>
                 <td class="importo-dare">${m.dare ? '\u20AC ' + formatImportoItaliano(m.dare) : ''}</td>
                 <td class="importo-avere">${m.avere ? '\u20AC ' + formatImportoItaliano(m.avere) : ''}</td>
@@ -1089,17 +1091,17 @@ function generaExcel() {
         [],
         ['Movimenti Totali', risultati.stats.totaleMovimenti],
         [],
-        ['Anticipi Totali', risultati.stats.anticipiTotali],
-        ['Anticipi Conciliati', risultati.stats.anticipiConciliati],
-        ['Anticipi Non Conciliati', risultati.stats.anticipiNonConciliati],
-        ['Importo Anticipi Conciliati', risultati.stats.importoAnticipiConciliati],
-        ['Importo Anticipi Non Conciliati', risultati.stats.importoAnticipiNonConciliati],
+        ['Dare Totali', risultati.stats.dareTotali],
+        ['Dare Conciliati', risultati.stats.dareConciliati],
+        ['Dare Non Conciliati', risultati.stats.dareNonConciliati],
+        ['Importo Dare Conciliati', risultati.stats.importoDareConciliati],
+        ['Importo Dare Non Conciliati', risultati.stats.importoDareNonConciliati],
         [],
-        ['Saldi Totali', risultati.stats.saldiTotali],
-        ['Saldi Conciliati', risultati.stats.saldiConciliati],
-        ['Saldi Non Conciliati', risultati.stats.saldiNonConciliati],
-        ['Importo Saldi Conciliati', risultati.stats.importoSaldiConciliati],
-        ['Importo Saldi Non Conciliati', risultati.stats.importoSaldiNonConciliati],
+        ['Avere Totali', risultati.stats.avereTotali],
+        ['Avere Conciliati', risultati.stats.avereConciliati],
+        ['Avere Non Conciliati', risultati.stats.avereNonConciliati],
+        ['Importo Avere Conciliati', risultati.stats.importoAvereConciliati],
+        ['Importo Avere Non Conciliati', risultati.stats.importoAvereNonConciliati],
         [],
         ['Commissioni (ERROR)', risultati.stats.commissioni]
     ];
