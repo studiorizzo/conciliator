@@ -107,6 +107,14 @@ function resetPagina() {
     }
 }
 
+function confermaUscita() {
+    // Se ci sono dati processati, chiedi conferma
+    if (hasConciliatoUnaVolta) {
+        return confirm('Sei sicuro di voler uscire? Tutti i dati andranno persi.');
+    }
+    return true;
+}
+
 // === GESTIONE SIDEBAR CONFIGURAZIONE ===
 const fab = document.getElementById('fab');
 const sidebar = document.getElementById('sidebar');
@@ -691,10 +699,6 @@ function mostraRisultati(ris) {
     const summaryGrid = document.getElementById('summaryGrid');
     summaryGrid.innerHTML = `
         <div class="summary-card">
-            <h3>Movimenti Totali</h3>
-            <div class="value">${ris.stats.totaleMovimenti}</div>
-        </div>
-        <div class="summary-card">
             <h3>Anticipi Conciliati</h3>
             <div class="value">${ris.stats.anticipiConciliati} / ${ris.stats.anticipiTotali}</div>
             <span class="percentage">\u20AC ${formatImportoItaliano(ris.stats.importoAnticipiConciliati)}</span>
@@ -729,30 +733,26 @@ function popolaTabella(movimenti) {
 
     // Ordina movimenti secondo le regole specificate:
     // 1. Bilancio apertura prima
-    // 2. Dare e Avere ordinati per data, MA gli avere conciliati "saltano la fila"
-    //    e seguono il loro dare corrispondente
-    // 3. Commissioni (ERROR) sempre alla fine
+    // 2. Tutti i movimenti (dare, avere, error) ordinati per data
+    //    MA gli avere conciliati "saltano la fila" e seguono il loro dare corrispondente
 
     const bilancio = movimenti.filter(m => m.codCausale === COD_BILANCIO_APERTURA);
-    const errors = movimenti.filter(m => m.isError).sort((a, b) => (a.dataSerial || 0) - (b.dataSerial || 0));
 
-    // Movimenti dare non error e non bilancio
+    // Movimenti dare (inclusi error)
     const dareMovimenti = movimenti.filter(m =>
         m.dare &&
-        !m.isError &&
         m.codCausale !== COD_BILANCIO_APERTURA
     );
 
-    // Movimenti avere non error, non bilancio e NON conciliati (quelli conciliati saltano la fila)
+    // Movimenti avere NON conciliati (inclusi error) - quelli conciliati saltano la fila
     const avereNonConciliati = movimenti.filter(m =>
         m.avere &&
-        !m.isError &&
         m.codCausale !== COD_BILANCIO_APERTURA &&
         !m.conciliato
     );
 
     // Unisci dare e avere non conciliati e ordina per data
-    const dareEAvereOrdinati = [...dareMovimenti, ...avereNonConciliati]
+    const tuttiMovimentiOrdinati = [...dareMovimenti, ...avereNonConciliati]
         .sort((a, b) => (a.dataSerial || 0) - (b.dataSerial || 0));
 
     // Costruisci array ordinato
@@ -761,11 +761,12 @@ function popolaTabella(movimenti) {
     // 1. Bilancio apertura
     bilancio.forEach(m => movimentiOrdinati.push({ movimento: m, tipo: 'bilancio' }));
 
-    // 2. Dare e Avere ordinati per data, con avere conciliati che seguono il dare
-    dareEAvereOrdinati.forEach(mov => {
+    // 2. Tutti i movimenti ordinati per data, con avere conciliati che seguono il dare
+    tuttiMovimentiOrdinati.forEach(mov => {
         if (mov.dare) {
             // E' un movimento dare
-            movimentiOrdinati.push({ movimento: mov, tipo: 'dare' });
+            const tipo = mov.isError ? 'error' : 'dare';
+            movimentiOrdinati.push({ movimento: mov, tipo: tipo });
 
             // Se conciliato, aggiungi avere corrispondenti subito dopo (saltano la fila)
             if (mov.conciliato && mov.matchProgs.length > 0) {
@@ -778,12 +779,10 @@ function popolaTabella(movimenti) {
             }
         } else {
             // E' un movimento avere non conciliato (segue l'ordine per data)
-            movimentiOrdinati.push({ movimento: mov, tipo: 'avere-non-conciliato' });
+            const tipo = mov.isError ? 'error' : 'avere-non-conciliato';
+            movimentiOrdinati.push({ movimento: mov, tipo: tipo });
         }
     });
-
-    // 3. Errors sempre alla fine
-    errors.forEach(e => movimentiOrdinati.push({ movimento: e, tipo: 'error' }));
 
     // Genera HTML tabella
     let html = `
