@@ -918,7 +918,11 @@ function popolaTabella(movimenti) {
                 // Icona freccia verso destra (collassato di default)
                 expandIcon = `<span class="expand-icon" data-prog="${m.prog}">&#9654;</span>`;
             }
+        } else if (m.avere) {
+            // Avere non conciliato: badge outline arancione
+            statoHtml = '<span class="badge-stato badge-non-conciliato-outline">NON CONCILIATO</span>';
         } else {
+            // Dare non conciliato: badge pieno arancione
             statoHtml = '<span class="badge-stato badge-non-conciliato">NON CONCILIATO</span>';
         }
 
