@@ -93,8 +93,8 @@
 <body>
     <header class="app-header">
         <div class="header-content">
-            <a href="index.html" class="home-link" title="Torna alla Home">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+            <a href="index.html" class="home-link" id="home-link" title="Torna alla Home" onclick="return confermaUscita()">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="#764ba2">
                     <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
                 </svg>
             </a>
@@ -273,7 +273,7 @@
         <div class="sidebar-footer">
             <div style="display: flex; gap: 12px;">
                 <button class="btn-concilia" id="btn-concilia-upload" onclick="conciliaFromUpload()">
-                    Concilia
+                    &#128640; Concilia
                 </button>
                 <button class="btn-reload" id="btn-reload-upload" onclick="resetPagina()" title="Ricomincia da capo">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -334,7 +334,7 @@
         <div class="sidebar-footer">
             <div style="display: flex; gap: 12px;">
                 <button class="btn-concilia" id="btn-concilia-sidebar" onclick="applicaConfigESalva()">
-                    Concilia
+                    &#128640; Concilia
                 </button>
                 <button class="btn-reload" onclick="resetConfig()" title="Ripristina configurazione predefinita">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

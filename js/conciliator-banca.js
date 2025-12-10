@@ -108,9 +108,17 @@ function mostraConfigFab() {
 }
 
 function resetPagina() {
-    if (confirm('⚠️ Sei sicuro di voler ricaricare la pagina? Tutti i dati andranno persi.')) {
+    if (confirm('Sei sicuro di voler ricaricare la pagina? Tutti i dati andranno persi.')) {
         location.reload();
     }
+}
+
+function confermaUscita() {
+    // Se ci sono dati processati, chiedi conferma
+    if (hasConciliatoUnaVolta) {
+        return confirm('Sei sicuro di voler uscire? Tutti i dati andranno persi.');
+    }
+    return true;
 }
 
 // === GESTIONE SIDEBAR CONFIGURAZIONE ===
