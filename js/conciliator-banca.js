@@ -1490,7 +1490,14 @@ function concilia(estratto, mast, config, periodi, onProgress, isIncremental = f
     console.log(`📊 USCITE: ${usciteConc}/${uscite.length} conciliate (${(usciteConc/uscite.length*100).toFixed(1)}%)`);
     console.log('═══════════════════════════════════════════\n');
 
-    return { entrate: estrattoFiltrato, uscite: [], dare: dare, avere: avere };
+    // Tabella, riepilogo ed esportazione devono vedere tutto il mastrino del periodo:
+    // in modalità incrementale dare/avere non contengono i conciliati sicuri della prima passata
+    return {
+        entrate: estrattoFiltrato,
+        uscite: [],
+        dare: mastFiltrato.filter(m => m.dare),
+        avere: mastFiltrato.filter(m => m.avere)
+    };
 }
 
 // === VISUALIZZAZIONE RISULTATI ===
